@@ -119,7 +119,6 @@ class GMM():
 
 
     def _compute_tau(self):
-        # TODO: optimize this function
         """
         E-step: Update the responsibility matrix `tau` based on the current estimates of
         the model parameters (pi, mu, sigma).
@@ -154,7 +153,6 @@ class GMM():
 
 
     def _compute_log_likelihood(self):
-        #TODO: optimize this function
         """
         Compute the log-likelihood of the current model given the data.
         
@@ -253,7 +251,7 @@ class GMM():
             The BIC value for the current model.
         """
         # Number of parameters for the model
-        num_params = self.M * (self.dim + self.dim*(self.dim+1)//2 + 1) - 1
+        num_params = ( self.M - 1 ) + (self.M * self.dim) + (self.M * self.dim * (self.dim + 1) / 2)
         
         # Compute the BIC value
         return - self._compute_log_likelihood() + num_params * np.log(self.N) / 2
@@ -295,13 +293,15 @@ class GMM():
         width, height = 2 * n_std * np.sqrt(eigvals)
         
         # Create the ellipse
-        ellipse = Ellipse(xy=mu, width=width, height=height, angle=angle, **kwargs)
-        
-        if ax is None:
-            ax = plt.gca()
-        
-        # Add the ellipse to the plot
-        ax.add_patch(ellipse)
+        radius_iter = 8
+        for r in np.linspace(0, 1.5, radius_iter):
+            ellipse = Ellipse(xy=mu, width=r*width, height=r*height, angle=angle, alpha=(1-(r/1.5)**2), **kwargs)
+            
+            if ax is None:
+                ax = plt.gca()
+            
+            # Add the ellipse to the plot
+            ax.add_patch(ellipse)
         
         return ellipse
 
@@ -320,14 +320,20 @@ class GMM():
         if ax is None:
             fig, ax = plt.subplots()
 
-        # Plot data points as well
-        ax.scatter(self.X[:, 0], self.X[:, 1], s=10, c='black', alpha=0.5)
+
+         # Plot data points as well
+        ax.scatter(self.X[:, 0], self.X[:, 1], s=10, c='black', alpha=0.5)        
 
         # Plot ellipses for each Gaussian component
         if colors is None:
-            colors = np.random.random(size=(self.M, 3))
+            colors = np.random.random(size=(self.M, 3)) 
+            colors = np.where(colors < 0.5, 1-colors, colors)  # Avoid very dark colors
         for k in range(self.M):
-            self._plot_gaussian_ellipses(self.mu[k], self.sigma[k], ax=ax, lw=2, n_std=2, alpha=0.75, edgecolor=colors[k], facecolor=colors[k])
+            self._plot_gaussian_ellipses(self.mu[k], self.sigma[k], ax=ax, lw=2, n_std=2, edgecolor=colors[k], facecolor=colors[k])
+
+
+        
+
 
         ax.set_xlabel('X1')
         ax.set_ylabel('X2')
@@ -361,20 +367,17 @@ class GMM():
             self.mu, self.sigma = self.mu[idx], self.sigma[idx]
             
             for k in range(self.M):
-                self._plot_gaussian_ellipses(self.mu[k], self.sigma[k], ax=ax, lw=2, n_std=2, alpha=0.75, edgecolor=colors[k], facecolor=colors[k])
+                self._plot_gaussian_ellipses(self.mu[k], self.sigma[k], ax=ax, lw=2, n_std=2, alpha=0.01, edgecolor=colors[k], facecolor=colors[k])
             ax.set_xlabel('X1')
             ax.set_ylabel('X2')
             ax.set_title(f'GMM Gaussian Components (Iteration {frame})')
             self.plot_gmm_ellipses(ax=ax, colors=colors)
-            plt.show()
 
         # Animate the fitting process
-        anim = FuncAnimation(fig, update, frames=max_iter, interval=100)
+        anim = FuncAnimation(fig, update, frames=max_iter, interval=20)
 
         if save:
             if not os.path.exists("Animation"):
                 os.makedirs("Animation")
             anim.save(os.path.join("Animation", "gmm.gif"), writer='pillow', fps=2)
-
-        plt.show()
 
